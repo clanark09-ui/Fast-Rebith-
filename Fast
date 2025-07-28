@@ -1,0 +1,132 @@
+local function loadPaidScript()
+    local a = game:GetService("ReplicatedStorage")
+    local b = game:GetService("Players")
+    local c = b.LocalPlayer
+
+    local function d()
+        local f = c:FindFirstChild("petsFolder")
+        if not f then return end
+        for _, folder in pairs(f:GetChildren()) do
+            if folder:IsA("Folder") then
+                for _, pet in pairs(folder:GetChildren()) do
+                    a.rEvents.equipPetEvent:FireServer("unequipPet", pet)
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+
+    local function getMaxSlots()
+        local equippedStat = c:FindFirstChild("maxEquipped")
+        if equippedStat and typeof(equippedStat.Value) == "number" then
+            return equippedStat.Value
+        end
+        return 8
+    end
+
+    local function k()
+        d()
+        task.wait(0.1)
+        local equippedPets = {}
+        local maxSlots = getMaxSlots()
+        local allPets = {}
+        for _, folder in pairs(c.petsFolder:GetChildren()) do
+            if folder:IsA("Folder") then
+                for _, pet in pairs(folder:GetChildren()) do
+                    table.insert(allPets, pet)
+                end
+            end
+        end
+        for _, pet in pairs(allPets) do
+            if pet.Name == "Swift Samurai" and #equippedPets < maxSlots then
+                a.rEvents.equipPetEvent:FireServer("equipPet", pet)
+                table.insert(equippedPets, pet)
+            end
+        end
+        table.sort(allPets, function(a, b)
+            return a.Value > b.Value
+        end)
+        for _, pet in pairs(allPets) do
+            if #equippedPets >= maxSlots then break end
+            if not table.find(equippedPets, pet) then
+                a.rEvents.equipPetEvent:FireServer("equipPet", pet)
+                table.insert(equippedPets, pet)
+            end
+        end
+    end
+
+    local function equipTribalOverlords()
+        d()
+        task.wait(0.1)
+        local allPets = {}
+        for _, folder in pairs(c.petsFolder:GetChildren()) do
+            if folder:IsA("Folder") then
+                for _, pet in pairs(folder:GetChildren()) do
+                    if pet.Name == "Tribal Overlord" then
+                        table.insert(allPets, pet)
+                    end
+                end
+            end
+        end
+        local maxSlots = getMaxSlots()
+        for i = 1, math.min(maxSlots, #allPets) do
+            a.rEvents.equipPetEvent:FireServer("equipPet", allPets[i])
+        end
+    end
+
+    local function o(p)
+        local q = workspace.machinesFolder:FindFirstChild(p)
+        if not q then
+            for _, s in pairs(workspace:GetChildren()) do
+                if s:IsA("Folder") and s.Name:find("machines") then
+                    q = s:FindFirstChild(p)
+                    if q then break end
+                end
+            end
+        end
+        return q
+    end
+
+    local function t()
+        local u = game:GetService("VirtualInputManager")
+        u:SendKeyEvent(true, "E", false, game)
+        task.wait(0.1)
+        u:SendKeyEvent(false, "E", false, game)
+    end
+
+    local farmingEnabled = false
+    -- Eliminamos la parte que verificaba los renacimientos
+
+    -- Ahora el farming continúa sin detenerse por los renacimientos
+    while farmingEnabled do
+        local v = c.leaderstats.Rebirths.Value
+        local w = 10000 + (5000 * v)
+        if c.ultimatesFolder:FindFirstChild("Golden Rebirth") then
+            local x = c.ultimatesFolder["Golden Rebirth"].Value
+            w = math.floor(w * (1 - (x * 0.1)))
+        end
+        k()
+        while c.leaderstats.Strength.Value < w and farmingEnabled do
+            for _ = 1, 10 do
+                c.muscleEvent:FireServer("rep")
+            end
+            task.wait()
+        end
+        if not farmingEnabled then break end
+        equipTribalOverlords()
+        local z = o("Jungle Bar Lift")
+        if z and z:FindFirstChild("interactSeat") then
+            c.Character.HumanoidRootPart.CFrame = z.interactSeat.CFrame * CFrame.new(0, 3, 0)
+            repeat task.wait(0.1) t() until c.Character.Humanoid.Sit or not farmingEnabled
+        end
+        if not farmingEnabled then break end
+        repeat a.rEvents.rebirthRemote:InvokeServer("rebirthRequest") task.wait(0.1)
+        until not farmingEnabled
+        task.wait()
+    end
+
+    -- Estado final después de detener el farming
+    farmingEnabled = false
+end
+
+loadPaidScript()
