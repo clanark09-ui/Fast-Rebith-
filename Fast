@@ -1,9 +1,5 @@
--- Alternamos el estado
+-- Alternamos estado
 getgenv().AutoFarming = not getgenv().AutoFarming
-
--- Variables para controlar y limpiar
-local loopThread
-local connCharacter
 
 if getgenv().AutoFarming then
     print("⛏️ AutoFarming ACTIVADO")
@@ -12,28 +8,20 @@ if getgenv().AutoFarming then
     local b = game:GetService("Players")
     local c = b.LocalPlayer
 
-    -- Bandera para controlar si "Tribal Overlord" ya ha sido equipada
-    local tribalOverlordsEquipped = false
-
-    -- Función para equipar "Swift Samurai"
-    local function equipSwiftSamurai()
-        local allPets = {}
-        for _, folder in pairs(c.petsFolder:GetChildren()) do
+    local function equipPetByName(name)
+        local folderPets = c:FindFirstChild("petsFolder")
+        if not folderPets then return end
+        for _, folder in pairs(folderPets:GetChildren()) do
             if folder:IsA("Folder") then
                 for _, pet in pairs(folder:GetChildren()) do
-                    if pet.Name == "Swift Samurai" then
-                        table.insert(allPets, pet)
+                    if pet.Name == name then
+                        a.rEvents.equipPetEvent:FireServer("equipPet", pet)
                     end
                 end
             end
         end
-        -- Equipamos "Swift Samurai"
-        for _, pet in pairs(allPets) do
-            a.rEvents.equipPetEvent:FireServer("equipPet", pet)
-        end
     end
 
-    -- Función para desequipar todas las mascotas
     local function unequipAllPets()
         local f = c:FindFirstChild("petsFolder")
         if not f then return end
@@ -47,96 +35,56 @@ if getgenv().AutoFarming then
         task.wait(0.1)
     end
 
-    -- Función para equipar las mascotas necesarias para el renacimiento (Ejemplo "Tribal Overlord")
-    local function equipRenascencePets()
-        local allPets = {}
-        for _, folder in pairs(c.petsFolder:GetChildren()) do
-            if folder:IsA("Folder") then
-                for _, pet in pairs(folder:GetChildren()) do
-                    if pet.Name == "Tribal Overlord" then
-                        table.insert(allPets, pet)
-                    end
-                end
-            end
-        end
-
-        -- Equipamos las "Tribal Overlord" de la misma manera que "Swift Samurai"
-        for _, pet in pairs(allPets) do
-            a.rEvents.equipPetEvent:FireServer("equipPet", pet)
-        end
-        tribalOverlordsEquipped = true  -- Marcamos que "Tribal Overlord" ha sido equipada
-    end
-
-    -- Función para obtener la cantidad de Golden Rebirth
     local function getGoldenRebirthCount()
-        local goldenRebirth = c.ultimatesFolder:FindFirstChild("Golden Rebirth")
-        if goldenRebirth then
-            return goldenRebirth.Value
+        local g = c:FindFirstChild("ultimatesFolder")
+        if g and g:FindFirstChild("Golden Rebirth") then
+            return g["Golden Rebirth"].Value
         end
         return 0
     end
 
-    -- Obtener fuerza mínima para renacer, ajustada por Golden Rebirth
     local function getStrengthRequiredForRebirth()
         local rebirths = c.leaderstats.Rebirths.Value
         local baseStrength = 10000 + (5000 * rebirths)
-
-        -- Obtener el número de Golden Rebirth
-        local goldenRebirthCount = getGoldenRebirthCount()
-
-        -- Si tiene entre 1 y 5 Golden Rebirth, restamos un 10% por cada uno
-        if goldenRebirthCount >= 1 and goldenRebirthCount <= 5 then
-            baseStrength = baseStrength * (1 - (goldenRebirthCount * 0.1))
+        local golden = getGoldenRebirthCount()
+        if golden >= 1 and golden <= 5 then
+            baseStrength = baseStrength * (1 - golden * 0.1)
         end
-
-        return math.floor(baseStrength)  -- Aseguramos que el valor sea un número entero
+        return math.floor(baseStrength)
     end
 
-    -- Hilo principal de farmeo
-    loopThread = task.spawn(function()
+    task.spawn(function()
         while getgenv().AutoFarming do
-            -- Reiniciar la bandera de "Tribal Overlord" para que se pueda equipar nuevamente después de un renacimiento
-            tribalOverlordsEquipped = false
-
             local requiredStrength = getStrengthRequiredForRebirth()
-            print("Fuerza necesaria para renacer (ajustada por Golden Rebirth):", requiredStrength)
+            print("Necesario para renacer:", requiredStrength)
 
-            -- Equipamos las "Swift Samurai" para comenzar el farmeo
+            -- Fase de farmeo
             unequipAllPets()
-            equipSwiftSamurai()
+            equipPetByName("Swift Samurai")
 
-            -- Mientras no tengamos la fuerza necesaria, seguimos haciendo repeticiones
             while c.leaderstats.Strength.Value < requiredStrength and getgenv().AutoFarming do
                 for _ = 1, 10 do
-                    c.muscleEvent:FireServer("rep") -- Incrementar fuerza
+                    c.muscleEvent:FireServer("rep")
                 end
                 task.wait()
             end
 
-            -- Si la fuerza es suficiente, hacer renacer
+            -- Fase de renacimiento
             if getgenv().AutoFarming then
-                -- Desequipamos "Swift Samurai" y equipamos "Tribal Overlord"
                 unequipAllPets()
-                equipRenascencePets()
+                equipPetByName("Tribal Overlord")
 
-                -- Realizamos la renacida
+                local oldRebirths = c.leaderstats.Rebirths.Value
                 repeat
                     a.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
                     task.wait(0.1)
-                until c.leaderstats.Rebirths.Value > 0
+                until c.leaderstats.Rebirths.Value > oldRebirths or not getgenv().AutoFarming
 
-                print("Renacimiento realizado, reiniciando ciclo.")
+                print("Renacimiento hecho. Reiniciando ciclo.")
             end
-
-            task.wait()
         end
-        print("🛑 AutoFarming DESACTIVADO")
+        print("🛑 AutoFarming DETENIDO")
     end)
-
 else
     print("🛑 AutoFarming DESACTIVADO")
-    -- Limpiamos el hilo si existía
-    if loopThread then
-        loopThread:Cancel()
-    end
 end
